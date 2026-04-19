@@ -1,0 +1,271 @@
+import { Component, inject, signal, computed, isDevMode } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { injectQuery } from '@tanstack/angular-query-experimental';
+import { lastValueFrom } from 'rxjs';
+import { AdminService, DashboardMetrics } from '../../services/admin.service';
+import { MetricCardComponent } from '../../components/ui/metric-card.component';
+import { StatusChipComponent } from '../../components/ui/status-chip.component';
+import { ShimmerSkeletonComponent } from '../../components/ui/shimmer-skeleton.component';
+import { CountUpDirective } from '../../directives/count-up.directive';
+import { HoverScaleDirective } from '../../directives/hover-scale.directive';
+import { TooltipDirective } from '../../directives/tooltip.directive';
+import { PulseAnimationDirective } from '../../directives/pulse-animation.directive';
+import { ScrollRevealDirective } from '../../directives/scroll-reveal.directive';
+
+@Component({
+  selector: 'app-dashboard',
+  standalone: true,
+  imports: [CommonModule, MetricCardComponent, StatusChipComponent, ShimmerSkeletonComponent, CountUpDirective, HoverScaleDirective, TooltipDirective, PulseAnimationDirective, ScrollRevealDirective],
+  template: `
+    <div class="space-y-6">
+      <!-- Page header -->
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-2xl font-bold text-on-surface">Dashboard</h1>
+          <p class="text-sm text-on-surface-variant mt-1">Overview of your system metrics and activity</p>
+        </div>
+        <div class="text-sm text-on-surface-variant">
+          Last updated: {{ now | date:'medium' }}
+        </div>
+      </div>
+
+      <!-- Metric Cards Grid -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" scrollReveal>
+        @if (loading()) {
+          @for (n of [1,2,3,4]; track n; let i = $index) {
+            <div class="bg-surface-container-lowest p-6 rounded-xl border-l-4 border-surface-container-high skeleton-peak"
+                 [style.animation-delay]="i * 100 + 'ms'">
+              <div class="h-3 w-24 bg-surface-container-high rounded-full mb-4"></div>
+              <div class="h-8 w-20 bg-surface-container-high rounded-full"></div>
+            </div>
+          }
+        } @else {
+          <app-metric-card
+            label="Total Users"
+            [value]="metrics()?.totalUsers || 0"
+            color="primary"
+            [trend]="12.5"
+            [style.animation-delay]="0 + 'ms'"
+            hoverScale
+            class="animate-fade-slide-up" />
+
+          <app-metric-card
+            label="Total Volume"
+            [value]="metrics()?.totalVolume || 0"
+            prefix="₦"
+            color="tertiary"
+            [trend]="8.3"
+            [style.animation-delay]="100 + 'ms'"
+            hoverScale
+            class="animate-fade-slide-up" />
+
+          <app-metric-card
+            label="Active Loans"
+            [value]="metrics()?.activeLoans || 0"
+            color="secondary"
+            [trend]="-2.1"
+            [style.animation-delay]="200 + 'ms'"
+            hoverScale
+            class="animate-fade-slide-up" />
+
+          <app-metric-card
+            label="Pending KYC"
+            [value]="metrics()?.pendingKyc || 0"
+            color="error"
+            hoverScale />
+        }
+      </div>
+
+      <!-- Charts and Recent Activity -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Transaction Volume Chart -->
+        <div class="lg:col-span-2 bg-surface-container-lowest rounded-xl p-6 shadow-[0_2px_12px_rgba(25,28,29,0.06)]">
+          <h3 class="text-lg font-bold text-on-surface mb-4">Transaction Volume (Last 7 Days)</h3>
+
+          @if (loading()) {
+            <div class="h-48 bg-surface-container-high rounded-xl animate-skeleton-pulse"></div>
+          } @else {
+            <div class="h-48 flex items-end gap-2">
+              @for (day of volumeData(); track day.date; let i = $index) {
+                <div class="flex-1 flex flex-col items-center gap-2">
+                  <div class="w-full bg-primary-fixed-dim rounded-t-lg origin-bottom transition-all duration-300"
+                       [class.animate-bar-grow]="chartVisible()"
+                       [style.animation-delay]="i * 50 + 'ms'"
+                       [style.height.%]="(day.amount / maxVolume()) * 100">
+                  </div>
+                  <span class="text-xs text-on-surface-variant">{{ day.date | date:'EEE' }}</span>
+                </div>
+              }
+            </div>
+          }
+        </div>
+
+        <!-- Pending KYC Queue -->
+        <div class="bg-surface-container-lowest rounded-xl p-6 shadow-[0_2px_12px_rgba(25,28,29,0.06)] hover-lift transition-all duration-200">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-bold text-on-surface">Pending KYC</h3>
+            <a routerLink="/kyc" 
+               class="text-sm text-primary hover:underline"
+               tooltip="View all KYC submissions"
+               tooltipPosition="left">View All</a>
+          </div>
+
+          @if (loading()) {
+            @for (n of [1,2,3]; track n) {
+              <div class="p-3 mb-2 bg-surface-container-high rounded-xl animate-skeleton-pulse">
+                <div class="h-4 w-32 bg-surface-container rounded-full mb-2"></div>
+                <div class="h-3 w-24 bg-surface-container rounded-full"></div>
+              </div>
+            }
+          } @else {
+            <div class="space-y-2">
+              @for (item of pendingKycItems(); track item.id; let i = $index) {
+                <div class="p-3 hover:bg-surface-container-low rounded-xl transition-colors duration-200 cursor-pointer animate-stagger-in opacity-0"
+                     [style.animation-delay]="i * 80 + 'ms'"
+                     [style.animation-fill-mode]="'forwards'"
+                     (click)="goToKyc()">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                      <div class="w-8 h-8 rounded-full bg-primary-fixed flex items-center justify-center">
+                        <span class="material-symbols-outlined text-primary text-sm">person</span>
+                      </div>
+                      <div>
+                        <p class="text-sm font-semibold text-on-surface">{{ item.name }}</p>
+                        <p class="text-xs text-on-surface-variant">{{ item.type }}</p>
+                      </div>
+                    </div>
+                    <span class="text-xs text-on-surface-variant">{{ item.time }}</span>
+                  </div>
+                </div>
+              }
+
+              @if (pendingKycItems().length === 0) {
+                <div class="text-center py-8">
+                  <span class="material-symbols-outlined text-4xl text-surface-variant">verified_user</span>
+                  <p class="text-sm text-on-surface-variant mt-2">No pending KYC verifications</p>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      </div>
+
+      <!-- Recent Transactions -->
+      <div class="bg-surface-container-lowest rounded-xl p-6 shadow-[0_2px_12px_rgba(25,28,29,0.06)] hover-lift transition-all duration-200">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-bold text-on-surface">Recent Transactions</h3>
+          <a routerLink="/transactions" 
+             class="text-sm text-primary hover:underline"
+             tooltip="View all transactions"
+             tooltipPosition="left">View All</a>
+        </div>
+
+        @if (loading()) {
+          <div class="space-y-2">
+            @for (n of [1,2,3,4,5]; track n; let i = $index) {
+              <div class="flex items-center gap-4 p-3 animate-skeleton-pulse"
+                   [style.animation-delay]="i * 150 + 'ms'">
+                <div class="w-10 h-10 rounded-full bg-surface-container-high"></div>
+                <div class="flex-1">
+                  <div class="h-4 w-32 bg-surface-container-high rounded-full mb-2"></div>
+                  <div class="h-3 w-24 bg-surface-container-high rounded-full"></div>
+                </div>
+                <div class="h-4 w-20 bg-surface-container-high rounded-full"></div>
+              </div>
+            }
+          </div>
+        } @else {
+          <div class="space-y-2">
+            @for (tx of recentTransactions(); track tx.id; let i = $index) {
+              <div class="flex items-center gap-4 p-3 hover:bg-surface-container-low rounded-xl transition-colors duration-200 animate-stagger-in opacity-0"
+                   [style.animation-delay]="i * 40 + 'ms'"
+                   [style.animation-fill-mode]="'forwards'">
+                <div class="w-10 h-10 rounded-full flex items-center justify-center"
+                     [class]="tx.status === 'SUCCESS' ? 'bg-tertiary-fixed' : tx.status === 'PENDING' ? 'bg-secondary-fixed' : 'bg-error-container'">
+                  <span class="material-symbols-outlined text-sm"
+                        [class]="tx.status === 'SUCCESS' ? 'text-tertiary' : tx.status === 'PENDING' ? 'text-secondary' : 'text-error'">
+                    {{ getTransactionIcon(tx.type) }}
+                  </span>
+                </div>
+                <div class="flex-1">
+                  <p class="text-sm font-semibold text-on-surface">{{ tx.userName }}</p>
+                  <p class="text-xs text-on-surface-variant">{{ tx.type }} • {{ tx.createdAt | date:'short' }}</p>
+                </div>
+                <div class="flex items-center gap-3">
+                  <span class="text-sm font-bold text-on-surface">
+                    <span class="text-on-surface-variant">₦</span>{{ tx.amount | number:'1.0-0':'en-NG' }}
+                  </span>
+                  <app-status-chip [status]="tx.status"></app-status-chip>
+                </div>
+              </div>
+            }
+          </div>
+        }
+      </div>
+    </div>
+  `
+})
+export class DashboardPageComponent {
+  private adminService = inject(AdminService);
+
+  now = new Date();
+  chartVisible = signal(true);
+
+  metricsQuery = injectQuery(() => ({
+    queryKey: ['dashboard-metrics'],
+    queryFn: () => lastValueFrom(this.adminService.getDashboardMetrics()),
+  }));
+
+  loading = computed(() => this.metricsQuery.isPending());
+  metrics = computed(() => this.metricsQuery.data()?.data);
+
+  volumeData = computed(() => {
+    const m = this.metrics() as any;
+    if (m?.volumeByDay) return m.volumeByDay;
+    if (!isDevMode()) return [];
+    return [
+      { date: '2024-01-01', amount: 150000 },
+      { date: '2024-01-02', amount: 230000 },
+      { date: '2024-01-03', amount: 180000 },
+      { date: '2024-01-04', amount: 320000 },
+      { date: '2024-01-05', amount: 280000 },
+      { date: '2024-01-06', amount: 350000 },
+      { date: '2024-01-07', amount: 410000 },
+    ];
+  });
+
+  maxVolume = computed(() => Math.max(...this.volumeData().map((d: { date: string; amount: number }) => d.amount)));
+
+  pendingKycItems = computed(() => [
+    { id: '1', name: 'John Doe', type: 'BVN Verification', time: '2 min ago' },
+    { id: '2', name: 'Jane Smith', type: 'NIN Verification', time: '15 min ago' },
+    { id: '3', name: 'Mike Johnson', type: 'BVN Verification', time: '1 hour ago' },
+  ]);
+
+  recentTransactions = computed(() => {
+    const m = this.metrics() as any;
+    if (m?.recentTransactions) return m.recentTransactions;
+    if (!isDevMode()) return [];
+    return [
+      { id: '1', type: 'WALLET_FUNDING', amount: 50000, status: 'SUCCESS', createdAt: new Date().toISOString(), userName: 'John Doe' },
+      { id: '2', type: 'LOAN_DISBURSEMENT', amount: 150000, status: 'SUCCESS', createdAt: new Date(Date.now() - 3600000).toISOString(), userName: 'Jane Smith' },
+      { id: '3', type: 'NIP_TRANSFER', amount: 25000, status: 'PENDING', createdAt: new Date(Date.now() - 7200000).toISOString(), userName: 'Mike Johnson' },
+      { id: '4', type: 'LOAN_REPAYMENT', amount: 12500, status: 'SUCCESS', createdAt: new Date(Date.now() - 86400000).toISOString(), userName: 'Sarah Williams' },
+      { id: '5', type: 'BILL_PAYMENT', amount: 5000, status: 'FAILED', createdAt: new Date(Date.now() - 172800000).toISOString(), userName: 'Tom Brown' },
+    ];
+  });
+
+  getTransactionIcon(type: string): string {
+    const icons: Record<string, string> = {
+      'WALLET_FUNDING': 'add_circle',
+      'LOAN_DISBURSEMENT': 'payments',
+      'NIP_TRANSFER': 'send_money',
+      'LOAN_REPAYMENT': 'account_balance',
+      'BILL_PAYMENT': 'receipt',
+      'P2P_TRANSFER': 'swap_horiz',
+    };
+    return icons[type] || 'payment';
+  }
+
+  goToKyc() {}
+}

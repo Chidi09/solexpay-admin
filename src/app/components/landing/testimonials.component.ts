@@ -1,0 +1,87 @@
+import { Component } from '@angular/core';
+import { LucideAngularModule, Star } from 'lucide-angular';
+
+interface UniLogo { name: string; fullName: string; domain: string; }
+interface Testimonial { name: string; school: string; quote: string; avatar: string; }
+
+@Component({
+  selector: 'app-landing-testimonials',
+  standalone: true,
+  imports: [LucideAngularModule],
+  styles: [`.editorial-gradient { background: linear-gradient(135deg, #005bbf 0%, #1a73e8 100%); }`],
+  template: `
+    <section class="py-24 bg-surface-container">
+      <div class="max-w-7xl mx-auto px-6">
+        <div class="text-center mb-16" data-aos="fade-up">
+          <p class="text-on-surface-variant font-bold text-sm tracking-widest uppercase mb-8">Trusted Across Nigeria</p>
+          <div class="flex flex-wrap justify-center items-center gap-5 md:gap-8 mb-16">
+            @for (uni of universities; track uni.name; let i = $index) {
+              <div class="flex items-center gap-3 px-5 py-3 bg-surface-container-lowest rounded-2xl shadow-sm border border-outline-variant/20 grayscale opacity-60 hover:grayscale-0 hover:opacity-100 hover:-translate-y-0.5 transition-all duration-300"
+                   [title]="uni.fullName"
+                   data-aos="fade-up" [attr.data-aos-delay]="i * 60">
+                <img [src]="'https://www.google.com/s2/favicons?domain=' + uni.domain + '&sz=64'"
+                     [alt]="uni.name"
+                     class="w-8 h-8 rounded-md object-contain"
+                     loading="lazy" />
+                <span class="text-sm font-bold text-on-surface tracking-wide">{{ uni.name }}</span>
+              </div>
+            }
+          </div>
+        </div>
+
+        <div class="grid md:grid-cols-3 gap-6">
+          @for (review of testimonials; track review.name; let i = $index) {
+            <div class="bg-surface-container-lowest p-8 rounded-2xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all"
+                 data-aos="fade-up" [attr.data-aos-delay]="i * 120">
+              <div class="flex gap-0.5 text-primary mb-4">
+                @for (s of [1,2,3,4,5]; track s) {
+                  <lucide-icon [img]="StarIcon" class="w-[18px] h-[18px] fill-primary"></lucide-icon>
+                }
+              </div>
+              <p class="text-on-surface mb-6 leading-relaxed italic">"{{ review.quote }}"</p>
+              <div class="flex items-center gap-3">
+                <img [src]="review.avatar" [alt]="review.name"
+                     class="w-12 h-12 rounded-full object-cover border-2 border-surface-container-lowest shadow-md"
+                     loading="lazy" />
+                <div>
+                  <p class="font-bold text-sm text-on-surface font-display">{{ review.name }}</p>
+                  <p class="text-[10px] text-outline uppercase font-bold tracking-wider">{{ review.school }}</p>
+                </div>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    </section>
+  `
+})
+export class LandingTestimonialsComponent {
+  readonly StarIcon = Star;
+
+  readonly universities: UniLogo[] = [
+    { name: 'UNILAG', fullName: 'University of Lagos',              domain: 'unilag.edu.ng' },
+    { name: 'UI',     fullName: 'University of Ibadan',              domain: 'ui.edu.ng' },
+    { name: 'OAU',    fullName: 'Obafemi Awolowo University',        domain: 'oauife.edu.ng' },
+    { name: 'UNN',    fullName: 'University of Nigeria, Nsukka',     domain: 'unn.edu.ng' },
+    { name: 'ABU',    fullName: 'Ahmadu Bello University',           domain: 'abu.edu.ng' },
+    { name: 'FUTA',   fullName: 'Federal Univ. of Technology, Akure', domain: 'futa.edu.ng' },
+  ];
+
+  readonly testimonials: Testimonial[] = [
+    {
+      name: 'Amaka O.', school: 'UNILAG Student',
+      quote: 'SolexPay saved me when my hostel rent was due and my allowance was delayed. The student loan was fast and very easy to pay back.',
+      avatar: 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=200&h=200&fit=crop&crop=faces&auto=format&q=80',
+    },
+    {
+      name: 'Tunde J.', school: 'OAU Student',
+      quote: 'Finally an app that understands student life. I use target savings to keep money aside for my final year project. Very reliable!',
+      avatar: 'https://images.unsplash.com/photo-1531384441138-2736e62e0919?w=200&h=200&fit=crop&crop=faces&auto=format&q=80',
+    },
+    {
+      name: 'Fatima S.', school: 'ABU Student',
+      quote: 'Instant transfers to classmates and the student data deals are unbeatable. Every Nigerian student needs SolexPay.',
+      avatar: 'https://images.unsplash.com/photo-1619895862022-09114b41f16f?w=200&h=200&fit=crop&crop=faces&auto=format&q=80',
+    },
+  ];
+}
