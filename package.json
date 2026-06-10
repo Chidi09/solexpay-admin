@@ -20,7 +20,7 @@
     "test:coverage": "vitest run --coverage",
     "lint": "ng lint",
     "format": "prettier --write \"src/**/*.{ts,html,css,json}\"",
-    "prepare": "husky"
+    "prepare": "husky install || true"
   },
   "dependencies": {
     "@angular/animations": "^17.3.0",
